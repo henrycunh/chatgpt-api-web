@@ -1,6 +1,8 @@
 # ChatGPT API <!-- omit in toc -->
 
-> Node.js client for the official [ChatGPT](https://openai.com/blog/chatgpt/) API.
+> Typescript client for the official [ChatGPT](https://openai.com/blog/chatgpt/) API.
+
+> This is forked from the original [ChatGPT API repository](https://github.com/transitive-bullshit/chatgpt-api).
 
 [![NPM](https://img.shields.io/npm/v/chatgpt.svg)](https://www.npmjs.com/package/chatgpt) [![Build Status](https://github.com/transitive-bullshit/chatgpt-api/actions/workflows/test.yml/badge.svg)](https://github.com/transitive-bullshit/chatgpt-api/actions/workflows/test.yml) [![MIT License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/transitive-bullshit/chatgpt-api/blob/main/license) [![Prettier Code Formatting](https://img.shields.io/badge/code_style-prettier-brightgreen.svg)](https://prettier.io)
 
