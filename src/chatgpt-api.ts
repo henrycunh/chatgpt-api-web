@@ -1,9 +1,7 @@
-import Keyv from 'keyv'
 import pTimeout from 'p-timeout'
 import QuickLRU from 'quick-lru'
 import { v4 as uuidv4 } from 'uuid'
 
-import * as tokenizer from './tokenizer'
 import * as types from './types'
 import { fetch as globalFetch } from './fetch'
 import { fetchSSE } from './fetch-sse'
@@ -30,7 +28,7 @@ export class ChatGPTAPI {
   protected _getMessageById: types.GetMessageByIdFunction
   protected _upsertMessage: types.UpsertMessageFunction
 
-  protected _messageStore: Keyv<types.ChatMessage>
+  public _messageStore: QuickLRU<string, types.ChatMessage>
 
   /**
    * Creates a new client wrapper around OpenAI's chat completion API, mimicing the official ChatGPT webapp's functionality as closely as possible.
@@ -74,7 +72,7 @@ export class ChatGPTAPI {
       ...completionParams
     }
 
-    this._systemMessage = systemMessage
+    this._systemMessage = systemMessage as string
 
     if (this._systemMessage === undefined) {
       const currentDate = new Date().toISOString().split('T')[0]
@@ -87,13 +85,9 @@ export class ChatGPTAPI {
     this._getMessageById = getMessageById ?? this._defaultGetMessageById
     this._upsertMessage = upsertMessage ?? this._defaultUpsertMessage
 
-    if (messageStore) {
-      this._messageStore = messageStore
-    } else {
-      this._messageStore = new Keyv<types.ChatMessage, any>({
-        store: new QuickLRU<string, types.ChatMessage>({ maxSize: 10000 })
-      })
-    }
+    this._messageStore = new QuickLRU<string, types.ChatMessage>({
+      maxSize: 10000
+    })
 
     if (!this._apiKey) {
       throw new Error('OpenAI missing required apiKey')
@@ -142,7 +136,7 @@ export class ChatGPTAPI {
 
     let { abortSignal } = opts
 
-    let abortController: AbortController = null
+    let abortController: AbortController | null = null
     if (timeoutMs && !abortSignal) {
       abortController = new AbortController()
       abortSignal = abortController.signal
@@ -221,7 +215,7 @@ export class ChatGPTAPI {
                     onProgress?.(result)
                   }
                 } catch (err) {
-                  console.warn('OpenAI stream SEE event unexpected error', err)
+                  console.warn('OpenAI stream SSE event unexpected error', err)
                   return reject(err)
                 }
               }
@@ -260,6 +254,9 @@ export class ChatGPTAPI {
 
             if (response?.choices?.length) {
               const message = response.choices[0].message
+              if (!message) {
+                return reject(new Error('OpenAI error: no message'))
+              }
               result.text = message.content
               if (message.role) {
                 result.role = message.role
@@ -288,10 +285,10 @@ export class ChatGPTAPI {
     })
 
     if (timeoutMs) {
-      if (abortController) {
-        // This will be called when a timeout occurs in order for us to forcibly
-        // ensure that the underlying HTTP request is aborted.
-        ;(responseP as any).cancel = () => {
+      // This will be called when a timeout occurs in order for us to forcibly
+      // ensure that the underlying HTTP request is aborted.
+      ;(responseP as any).cancel = () => {
+        if (abortController !== null) {
           abortController.abort()
         }
       }
@@ -375,6 +372,7 @@ export class ChatGPTAPI {
       }
 
       const parentMessage = await this._getMessageById(parentMessageId)
+
       if (!parentMessage) {
         break
       }
@@ -402,24 +400,34 @@ export class ChatGPTAPI {
 
     return { messages, maxTokens, numTokens }
   }
+  /**
+   * Loads messages into the message store.
+   *
+   * @param messageList The list of messages to load.
+   */
+  async loadMessages(messageList: types.ChatMessage[]) {
+    for (const message of messageList) {
+      await this._upsertMessage(message)
+    }
+  }
 
   protected async _getTokenCount(text: string) {
     // TODO: use a better fix in the tokenizer
     text = text.replace(/<\|endoftext\|>/g, '')
 
-    return tokenizer.encode(text).length
+    return text.length / 10
   }
 
   protected async _defaultGetMessageById(
     id: string
   ): Promise<types.ChatMessage> {
-    const res = await this._messageStore.get(id)
+    const res = this._messageStore.get(id) as types.ChatMessage
     return res
   }
 
   protected async _defaultUpsertMessage(
     message: types.ChatMessage
   ): Promise<void> {
-    await this._messageStore.set(message.id, message)
+    this._messageStore.set(message.id, message)
   }
 }
