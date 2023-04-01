@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-web",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Typescript client for the official ChatGPT API, based on the `chatgpt` library.",
   "author": "Henrique Cunha <henrycunh@gmail.com>",
   "repository": "henrycunh/chatgpt-api-web",
